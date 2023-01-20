@@ -1,4 +1,4 @@
-import threading, _thread
+import threading
 import sys
 
 
