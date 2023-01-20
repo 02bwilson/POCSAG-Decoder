@@ -1,6 +1,7 @@
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMainWindow
 from commandhandler import CommandHandler
+from mwwidget import MainWidget
 
 
 class Window(QMainWindow):
@@ -17,3 +18,5 @@ class Window(QMainWindow):
         self.setWindowTitle("POCSAG Decoder v{}".format(self._VERSION_))
         self.setWindowIcon(self.icon)
         self.setFixedSize(400, 400)
+        self.mwwidget = MainWidget()
+        self.setCentralWidget(self.mwwidget)
