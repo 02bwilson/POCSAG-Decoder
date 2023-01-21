@@ -7,7 +7,8 @@ class AudioSampler(QThread):
     _VERSION_ = "1.0"
 
     update = pyqtSignal(np.ndarray)
-    def __init__(self, mw=None, channels=1, rate=44100):
+
+    def __init__(self, mw=None, channels=1, rate=24000):
         super().__init__()
 
         self.stream = None
@@ -17,18 +18,6 @@ class AudioSampler(QThread):
         self.CHANNELS = channels
         self.RATE = rate
         self.audio_cache = []
-
-    def start_stream(self):
-        self.stream = self.p.open(format=pyaudio.paFloat32,
-                                  channels=self.CHANNELS,
-                                  rate=self.RATE,
-                                  output=True,
-                                  input=True,
-                                  stream_callback=self.callback)
-
-        self.stream.start_stream()
-        while self.stream.is_active():
-            pass
 
     def stop_stream(self):
         if self.stream.is_active():
@@ -52,10 +41,12 @@ class AudioSampler(QThread):
         return devices
 
     def set_audio_device(self, id):
+        if self.stream is not None:
+            self.stop_stream()
         self.stream = self.p.open(format=pyaudio.paFloat32,
                                   channels=self.CHANNELS,
                                   rate=self.RATE,
-                                  output=True,
+                                  output=False,
                                   input=True,
                                   input_device_index=int(id),
                                   stream_callback=self.callback)
