@@ -25,11 +25,14 @@ class MainWidget(QtWidgets.QWidget):
         self.graphWidget = None
         self.data_processor = None
         self.timer = None
+        self.fs_status = None
         self.curaddr = None
         self.curmsg = None
         self.curtype = None
         self.plot_line = None
+        self.preamble_status = None
         self.bit_data = None
+        self.cur_addr = None
 
         # Setup basic stuff
         self.layout = QtWidgets.QVBoxLayout()
@@ -37,14 +40,24 @@ class MainWidget(QtWidgets.QWidget):
         self.audio_select = QtWidgets.QComboBox()
         self.graphWidget = pg.PlotWidget()
         self.graphWidget.setMouseEnabled(x=False, y=False)
+        self.graphWidget.setYRange(max=1, min=-1)
         self.setup_table()
 
         self.bit_data = ""
+        self.cur_addr = ""
+        self.preamble_status = False
+        self.fs_status = False
 
         self.layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
 
         self.data_processor = DataProcessor()
-        self.data_processor.ret_data.connect(self.handle_bit_data)
+        self.data_processor.preamble.connect(self.preamble_handler)
+        self.data_processor.framesync.connect(self.fs_handler)
+        self.data_processor.addr.connect(self.addr_handler)
+        self.data_processor.fs_exdata.connect(self.add_extra_data)
+        self.data_processor.message.connect(self.msg_handler)
+        self.data_processor.msg_batch_over.connect(self.msg_over)
+
         self.audio_sampler = AudioSampler(mw=self)
         self.audio_sampler.update.connect(self.recv_data)
         self.audio_devices = self.audio_sampler.get_audio_devices()
@@ -58,16 +71,48 @@ class MainWidget(QtWidgets.QWidget):
 
         self.setLayout(self.layout)
 
+    def addr_handler(self, data):
+        self.cur_addr = data
 
-    def handle_bit_data(self, bitstr):
-        self.bit_data += bitstr
-        if len(self.bit_data) == 512:
-            self.data_processor.parse_msg(self.bit_data)
-            self.bit_data = ""
+    def msg_handler(self):
+        if self.cur_addr != None:
+            self.add_msg()
+
+    def add_msg(self):
+        print(self.cur_addr, self.curmsg)
+
+    def preamble_handler(self):
+        self.preamble_status = True
+
+    def add_extra_data(self, data):
+        self.bit_data = data
+
+    def fs_handler(self):
+        self.fs_status = True
+
+    def msg_over(self):
+        self.fs_status = False
 
     def recv_data(self, data):
         self.plot_data(data)
-        self.data_processor.process(data)
+        bitstr = self.data_processor.process(data)
+        self.bit_data += bitstr
+        if len(self.bit_data) == 32:
+            if not self.bit_data.startswith("01111") and not self.bit_data.endswith("01111"):
+                if not self.preamble_status:
+                    self.data_processor.await_preamble(self.bit_data)
+                elif self.fs_status:
+                    self.data_processor.build_msg(self.bit_data)
+                else:
+                    self.data_processor.await_msg(self.bit_data)
+            if "0000000000000000" in self.bit_data:
+                # print("<<<END OF MESSAGE>>>")
+                self.preamble_status = False
+            else:
+                pass
+                # print("IDLE BLOCK :: SKIPPING \n")
+            self.bit_data = ""
+
     def plot_data(self, data):
         self.plot_line.setData(data)
 
