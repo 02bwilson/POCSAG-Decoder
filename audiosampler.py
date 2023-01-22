@@ -8,7 +8,7 @@ class AudioSampler(QThread):
 
     update = pyqtSignal(np.ndarray)
 
-    def __init__(self, mw=None, channels=1, rate=24000):
+    def __init__(self, mw=None, channels=1, rate=48000):
         super().__init__()
 
         self.stream = None
@@ -28,7 +28,7 @@ class AudioSampler(QThread):
 
         self.p.terminate()
 
-    def plot_data(self, data):
+    def update_data(self, data):
         self.update.emit(data)
 
     def get_audio_devices(self):
@@ -52,12 +52,8 @@ class AudioSampler(QThread):
                                   stream_callback=self.callback)
 
     def callback(self, in_data, frame_count, time_info, flag):
-        # using Numpy to convert to array for processing
         audio_data = np.fromstring(in_data, dtype=np.float32)
-        self.plot_data(audio_data)
+        self.update_data(audio_data)
         return in_data, pyaudio.paContinue
 
 
-if __name__ == "__main__":
-    ads = AudioSampler()
-    ads.start_stream()
