@@ -1,8 +1,9 @@
-import time
+import datetime
 
 from PyQt6 import QtWidgets, QtGui, QtCore
-from PyQt6.QtCore import QThread
-from PyQt6.QtWidgets import QHeaderView
+from PyQt6.QtCore import QThread, QModelIndex
+from PyQt6.QtGui import QStandardItem
+from PyQt6.QtWidgets import QHeaderView, QTableWidgetItem
 from audiosampler import AudioSampler
 import pyqtgraph as pg
 
@@ -12,13 +13,13 @@ from dataprocessor import DataProcessor
 class MainWidget(QtWidgets.QWidget):
     _VERSION_ = "1.0"
 
-    def __init__(self):
+    def __init__(self, dataviewer=None):
         super().__init__()
 
         self.layout = None
-        self.decode_modle = None
+        self.decode_model = None
         self.decode_table = None
-        self.form_layout = None
+        self.data_viewer = None
         self.audio_sampler = None
         self.audio_devices = None
         self.audio_select = None
@@ -26,9 +27,10 @@ class MainWidget(QtWidgets.QWidget):
         self.data_processor = None
         self.timer = None
         self.fs_status = None
-        self.curaddr = None
         self.curmsg = None
+        self.prev_bitstr = None
         self.curtype = None
+        self.exdata_stat = None
         self.plot_line = None
         self.preamble_status = None
         self.bit_data = None
@@ -36,17 +38,20 @@ class MainWidget(QtWidgets.QWidget):
 
         # Setup basic stuff
         self.layout = QtWidgets.QVBoxLayout()
-        self.form_layout = QtWidgets.QFormLayout()
         self.audio_select = QtWidgets.QComboBox()
         self.graphWidget = pg.PlotWidget()
         self.graphWidget.setMouseEnabled(x=False, y=False)
         self.graphWidget.setYRange(max=1, min=-1)
         self.setup_table()
 
+        self.data_viewer = dataviewer
+
+        self.prev_bitstr = ""
         self.bit_data = ""
         self.cur_addr = ""
         self.preamble_status = False
         self.fs_status = False
+        self.exdata_stat = False
 
         self.layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
 
@@ -74,18 +79,22 @@ class MainWidget(QtWidgets.QWidget):
     def addr_handler(self, data):
         self.cur_addr = data
 
-    def msg_handler(self):
+    def msg_handler(self, data):
         if self.cur_addr != None:
+            self.curmsg = data
             self.add_msg()
+            self.cur_addr = None
 
     def add_msg(self):
-        print(self.cur_addr, self.curmsg)
+        self.decode_model.appendRow([QStandardItem(datetime.datetime.now().strftime("%m-%d-%Y_%H:%M:%S")),
+                                     QStandardItem(str(int(self.cur_addr, 2))), QStandardItem(str(self.curmsg))])
 
     def preamble_handler(self):
         self.preamble_status = True
 
     def add_extra_data(self, data):
-        self.bit_data = data
+        self.exdata_stat = True
+        #self.bit_data = data
 
     def fs_handler(self):
         self.fs_status = True
@@ -97,34 +106,45 @@ class MainWidget(QtWidgets.QWidget):
         self.plot_data(data)
         bitstr = self.data_processor.process(data)
         self.bit_data += bitstr
-        if len(self.bit_data) == 32:
-            if not self.bit_data.startswith("01111") and not self.bit_data.endswith("01111"):
+        if len(self.bit_data) >= 32:
+            if self.data_viewer != None and self.fs_status:
+                self.data_viewer.add(self.bit_data)
+            if self.bit_data.count("01111") < 2:
                 if not self.preamble_status:
-                    self.data_processor.await_preamble(self.bit_data)
+                        self.data_processor.await_preamble(self.bit_data)
                 elif self.fs_status:
-                    self.data_processor.build_msg(self.bit_data)
-                else:
+                    if "010101010101010101010" not in self.bit_data and "011110101000" not in self.bit_data:
+                        print("Building msg with: \t %s" % self.bit_data)
+                        self.data_processor.build_msg(self.bit_data)
+                elif "0101010101010101" not in self.bit_data:
                     self.data_processor.await_msg(self.bit_data)
-            if "0000000000000000" in self.bit_data:
+            if "11111111111111111111" in self.bit_data or "0000000000000000" in self.bit_data:
                 # print("<<<END OF MESSAGE>>>")
                 self.preamble_status = False
+                self.fs_status = False
             else:
                 pass
                 # print("IDLE BLOCK :: SKIPPING \n")
+            if "0101010101010101" not in self.bit_data:
+                self.prev_bitstr = self.bit_data
             self.bit_data = ""
+
 
     def plot_data(self, data):
         self.plot_line.setData(data)
 
+
     def change_audio_device(self):
         self.audio_sampler.set_audio_device(self.audio_select.currentText().split(" ")[0])
 
+
     def setup_table(self):
         self.decode_model = QtGui.QStandardItemModel()
-        self.decode_model.setHorizontalHeaderLabels(['ADDR', 'TYPE', 'MESSAGE'])
+        self.decode_model.setHorizontalHeaderLabels(['TIME', 'ADDR', 'MESSAGE'])
 
         self.decode_table = QtWidgets.QTableView()
         self.decode_table.setModel(self.decode_model)
+        # self.decode_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
         header = self.decode_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)

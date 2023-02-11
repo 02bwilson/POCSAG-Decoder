@@ -16,7 +16,7 @@ class DataProcessor(QThread):
         super().__init__()
 
         self.speed = 1200
-        self.fs = 48000
+        self.fs = 24000
         self.cnt = int(self.fs / self.speed)
         self.cur_pre_framesync = ""
         self.cur_data = ""
@@ -38,24 +38,23 @@ class DataProcessor(QThread):
             for p1 in range(p, p + self.cnt):
                 s += data[p]
             bits_str += "1" if s < 0 else "0"
+        #print(bits_str)
         return bits_str
 
     def await_preamble(self, bitstr):
-        if bitstr == "10101010101010100101010101010101":
+        if bitstr == "10101010101010101010101010101010":
             print("!!! Preamble Detected !!! \n AWAITING FRAME SYNC")
             self.preamble.emit(bitstr)
 
     def await_msg(self, bitstr):
-        # POSSIBLE FRAME SYNCS??? INCONSISTENT
-        #print(bitstr)
-        match_str = "011111001101001000"
+        match_str = "01111100110100100001010111011000"
         check_str = self.cur_pre_framesync + bitstr
-        print(bitstr)
-        #print(check_str)
         if match_str in check_str:
             print("!!! FRAME SYNC DETECTED !!! \n AWAITING MESSAGE")
+            print("CHECK STR " + check_str + '\n\n')
             extra_data = check_str[check_str.rfind(match_str) + len(match_str):len(check_str)]
             self.cur_pre_framesync = ""
+            print(extra_data)
             self.framesync.emit()
             self.fs_exdata.emit(extra_data)
         else:
@@ -71,22 +70,21 @@ class DataProcessor(QThread):
                 cws = self.cur_data[32 * cw:32 * (cw + 1)]
                 if cws[0] == "0":
                     addr = cws[1:19]
-                    #print("  Addr:" + addr)
                     self.addr.emit(addr)
                 else:
                     msg = cws[1:21]
-                    #print("  Msg: " + msg)
-                    size = 4
-                    s = ""
-                    for ind in range(0, len(msg), size):
-                        bcd_s = msg[ind:ind + size]
-                        value = int(bcd_s, 2)
-                        symbols = "0123456789*U -)("
-                        s += symbols[value]
-                    full_msg += s
-                    #print("    1", s)
-            print(full_msg)
-            self.message.emit(full_msg)
+                    full_msg += msg
+
+            bits = [full_msg[i:i + 7] for i in range(0, len(full_msg), 7)]
+
+            # Get the message
+            msg = ""
+            for b in bits:
+                b1 = b[::-1]  # Revert string
+                value = int(b1, 2)
+                msg += chr(value)
+
+            self.message.emit(msg)
             self.cur_data = ""
             self.msg_batch_over.emit()
             print()

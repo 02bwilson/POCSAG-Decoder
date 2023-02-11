@@ -14,6 +14,10 @@ if __name__ == "__main__":
                         action='store_true',
                         help='Run the program in the terminal.')
 
+    parser.add_argument('-d', '--dataviewer',
+                        action='store_true',
+                        help='Use the data viewer.')
+
     args = parser.parse_args()
 
     app = QApplication([])

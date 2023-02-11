@@ -8,7 +8,7 @@ class AudioSampler(QThread):
 
     update = pyqtSignal(np.ndarray)
 
-    def __init__(self, mw=None, channels=1, rate=48000):
+    def __init__(self, mw=None, channels=1, rate=24000):
         super().__init__()
 
         self.stream = None
