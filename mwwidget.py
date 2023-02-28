@@ -29,6 +29,7 @@ class MainWidget(QtWidgets.QWidget):
         self.fs_status = None
         self.curmsg = None
         self.prev_bitstr = None
+        self.exdata_temp = None
         self.curtype = None
         self.exdata_stat = None
         self.plot_line = None
@@ -94,9 +95,14 @@ class MainWidget(QtWidgets.QWidget):
 
     def add_extra_data(self, data):
         self.exdata_stat = True
-        #self.bit_data = data
+        self.exdata_temp = data
 
     def fs_handler(self):
+        if self.fs_status:
+            print("NEW Framesync detected !!! New Batch started... \n")
+            self.add_msg()
+            self.curmsg = None
+            self.cur_addr = None
         self.fs_status = True
 
     def msg_over(self):
@@ -107,27 +113,51 @@ class MainWidget(QtWidgets.QWidget):
         bitstr = self.data_processor.process(data)
         self.bit_data += bitstr
         if len(self.bit_data) >= 32:
-            if self.data_viewer != None and self.fs_status:
-                self.data_viewer.add(self.bit_data)
-            if self.bit_data.count("01111") < 2:
-                if not self.preamble_status:
-                        self.data_processor.await_preamble(self.bit_data)
-                elif self.fs_status:
-                    if "010101010101010101010" not in self.bit_data and "011110101000" not in self.bit_data:
-                        print("Building msg with: \t %s" % self.bit_data)
-                        self.data_processor.build_msg(self.bit_data)
-                elif "0101010101010101" not in self.bit_data:
-                    self.data_processor.await_msg(self.bit_data)
-            if "11111111111111111111" in self.bit_data or "0000000000000000" in self.bit_data:
-                # print("<<<END OF MESSAGE>>>")
+            curdata = self.bit_data[:32]
+            self.bit_data = self.bit_data.replace(curdata, '')
+
+            if not self.preamble_status:
+                self.data_processor.await_preamble(curdata)
+            else:
+                self.data_processor.await_fs(curdata)
+                if self.fs_status:
+                    self.data_processor.build_msg(curdata)
+
+            if "000000000000" in curdata or "111111111111" in curdata:
                 self.preamble_status = False
                 self.fs_status = False
-            else:
-                pass
-                # print("IDLE BLOCK :: SKIPPING \n")
-            if "0101010101010101" not in self.bit_data:
-                self.prev_bitstr = self.bit_data
-            self.bit_data = ""
+                self.bit_data = ""
+
+
+    # def recv_data(self, data):
+    #     self.plot_data(data)
+    #     bitstr = self.data_processor.process(data)
+    #     self.bit_data += bitstr
+    #     if len(self.bit_data) >= 32:
+    #         curdata = self.bit_data[:32]
+    #         self.bit_data = self.bit_data.replace(curdata, '')
+    #         print(curdata)
+    #         if self.data_viewer != None and self.fs_status:
+    #             self.data_viewer.add(curdata)
+    #
+    #         if curdata.count("01111") < 2:
+    #             if not self.preamble_status:
+    #                     self.data_processor.await_preamble(curdata)
+    #             else:
+    #                 self.data_processor.await_msg(curdata)
+    #                 if "010101010101010101010" not in curdata and "011110101000" not in curdata:
+    #                     #print("Building msg with: \t %s" % curdata)
+    #                     self.data_processor.build_msg(curdata)
+    #         if "11111111111111111111" in curdata or "0000000000000000" in curdata:
+    #             # print("<<<END OF MESSAGE>>>")
+    #             self.preamble_status = False
+    #             self.fs_status = False
+    #         else:
+    #             pass
+    #         self.bit_data = ""
+    #         if self.exdata_stat:
+    #             self.bit_data = self.exdata_temp
+    #             self.exdata_stat = False
 
 
     def plot_data(self, data):

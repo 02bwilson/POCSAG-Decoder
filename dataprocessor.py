@@ -38,29 +38,24 @@ class DataProcessor(QThread):
             for p1 in range(p, p + self.cnt):
                 s += data[p]
             bits_str += "1" if s < 0 else "0"
-        #print(bits_str)
         return bits_str
 
     def await_preamble(self, bitstr):
         if bitstr == "10101010101010101010101010101010":
-            print("!!! Preamble Detected !!! \n AWAITING FRAME SYNC")
+            print("!!! Preamble Detected !!! \n")
             self.preamble.emit(bitstr)
 
-    def await_msg(self, bitstr):
+    def await_fs(self, bitstr):
         match_str = "01111100110100100001010111011000"
         check_str = self.cur_pre_framesync + bitstr
         if match_str in check_str:
-            print("!!! FRAME SYNC DETECTED !!! \n AWAITING MESSAGE")
-            print("CHECK STR " + check_str + '\n\n')
+            print("!!! FRAME SYNC DETECTED !!! \n")
             extra_data = check_str[check_str.rfind(match_str) + len(match_str):len(check_str)]
             self.cur_pre_framesync = ""
-            print(extra_data)
             self.framesync.emit()
             self.fs_exdata.emit(extra_data)
         else:
             self.cur_pre_framesync += bitstr
-
-            #print(bitstr)
 
     def build_msg(self, bitstr):
         self.cur_data += bitstr
