@@ -1,5 +1,6 @@
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QMainWindow
+import qdarktheme
 from commandhandler import CommandHandler
 from dataviewer import DataViewer
 from mwwidget import MainWidget
@@ -10,6 +11,9 @@ class Window(QMainWindow):
 
     def __init__(self, args):
         super().__init__()
+
+        # Init theme
+        qdarktheme.setup_theme('dark')
 
         # Setup vars
         self.icon = QIcon("images/icon.png")
