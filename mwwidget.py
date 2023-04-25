@@ -3,7 +3,7 @@ import datetime
 from PyQt6 import QtWidgets, QtGui, QtCore
 from PyQt6.QtCore import QThread, QModelIndex
 from PyQt6.QtGui import QStandardItem
-from PyQt6.QtWidgets import QHeaderView, QTableWidgetItem
+from PyQt6.QtWidgets import QHeaderView, QTableWidgetItem, QLabel
 from audiosampler import AudioSampler
 import pyqtgraph as pg
 
@@ -36,13 +36,16 @@ class MainWidget(QtWidgets.QWidget):
         self.preamble_status = None
         self.bit_data = None
         self.cur_addr = None
+        self.frame_count = None
+        self.msg_count = None
+        self.status_label = None
+        self.raw_data = None
 
         # Setup basic stuff
         self.layout = QtWidgets.QVBoxLayout()
         self.audio_select = QtWidgets.QComboBox()
         self.graphWidget = pg.PlotWidget()
         self.graphWidget.setMouseEnabled(x=False, y=False)
-        self.graphWidget.setYRange(max=1, min=-1)
         self.setup_table()
 
         self.data_viewer = dataviewer
@@ -53,6 +56,12 @@ class MainWidget(QtWidgets.QWidget):
         self.preamble_status = False
         self.fs_status = False
         self.exdata_stat = False
+
+        self.status_label = QLabel("")
+        self.status_label.setStyleSheet("color:white; text-align:right;")
+
+        self.msg_count = 0
+        self.frame_count = 0
 
         self.layout.setAlignment(QtCore.Qt.AlignmentFlag.AlignTop)
 
@@ -73,22 +82,37 @@ class MainWidget(QtWidgets.QWidget):
 
         self.layout.addWidget(self.audio_select)
         self.layout.addWidget(self.graphWidget)
+        self.layout.addWidget(self.status_label)
+
         self.plot_line = self.graphWidget.plot([0])
+        self.setStyleSheet("""QToolTip { 
+                                   background-color: black; 
+                                   color: white; 
+                                   border: black solid 1px
+                                   }""")
+
 
         self.setLayout(self.layout)
 
     def addr_handler(self, data):
         self.cur_addr = data
 
-    def msg_handler(self, data):
+    def msg_handler(self, data, raw_data):
         if self.cur_addr != None:
             self.curmsg = data
+            self.raw_data = raw_data
             self.add_msg()
             self.cur_addr = None
 
     def add_msg(self):
-        self.decode_model.appendRow([QStandardItem(datetime.datetime.now().strftime("%m-%d-%Y_%H:%M:%S")),
-                                     QStandardItem(str(int(self.cur_addr, 2))), QStandardItem(str(self.curmsg))])
+        time, addr, msg = (QStandardItem(datetime.datetime.now().strftime("%m-%d-%Y_%H:%M:%S")),
+                                     QStandardItem(str(int(self.cur_addr, 2))), QStandardItem(str(self.curmsg)))
+        tt = ""
+        length = len(self.raw_data)
+        for i in range(0, len(self.raw_data), 16):
+            tt += str(hex(int(self.raw_data[i: i + 16]))) + '\n'
+        msg.setToolTip(tt)
+        self.decode_model.appendRow([time, addr, msg])
 
     def preamble_handler(self):
         self.preamble_status = True
@@ -103,15 +127,26 @@ class MainWidget(QtWidgets.QWidget):
             self.add_msg()
             self.curmsg = None
             self.cur_addr = None
+        self.frame_count += 1
         self.fs_status = True
+        self.update_status()
+
+    def update_status(self):
+        self.status_label = QLabel("{} | {} M/F".format(self.msg_count, self.frame_count))
 
     def msg_over(self):
         self.fs_status = False
+        self.msg_count += 1
+        self.update_status()
 
     def recv_data(self, data):
         self.plot_data(data)
         bitstr = self.data_processor.process(data)
         self.bit_data += bitstr
+        if self.exdata_stat:
+            self.bit_data += self.exdata_temp
+            self.exdata_stat = False
+            self.exdata_temp = ""
         if len(self.bit_data) >= 32:
             curdata = self.bit_data[:32]
             self.bit_data = self.bit_data.replace(curdata, '')
@@ -128,45 +163,11 @@ class MainWidget(QtWidgets.QWidget):
                 self.fs_status = False
                 self.bit_data = ""
 
-
-    # def recv_data(self, data):
-    #     self.plot_data(data)
-    #     bitstr = self.data_processor.process(data)
-    #     self.bit_data += bitstr
-    #     if len(self.bit_data) >= 32:
-    #         curdata = self.bit_data[:32]
-    #         self.bit_data = self.bit_data.replace(curdata, '')
-    #         print(curdata)
-    #         if self.data_viewer != None and self.fs_status:
-    #             self.data_viewer.add(curdata)
-    #
-    #         if curdata.count("01111") < 2:
-    #             if not self.preamble_status:
-    #                     self.data_processor.await_preamble(curdata)
-    #             else:
-    #                 self.data_processor.await_msg(curdata)
-    #                 if "010101010101010101010" not in curdata and "011110101000" not in curdata:
-    #                     #print("Building msg with: \t %s" % curdata)
-    #                     self.data_processor.build_msg(curdata)
-    #         if "11111111111111111111" in curdata or "0000000000000000" in curdata:
-    #             # print("<<<END OF MESSAGE>>>")
-    #             self.preamble_status = False
-    #             self.fs_status = False
-    #         else:
-    #             pass
-    #         self.bit_data = ""
-    #         if self.exdata_stat:
-    #             self.bit_data = self.exdata_temp
-    #             self.exdata_stat = False
-
-
     def plot_data(self, data):
         self.plot_line.setData(data)
 
-
     def change_audio_device(self):
         self.audio_sampler.set_audio_device(self.audio_select.currentText().split(" ")[0])
-
 
     def setup_table(self):
         self.decode_model = QtGui.QStandardItemModel()
@@ -174,7 +175,9 @@ class MainWidget(QtWidgets.QWidget):
 
         self.decode_table = QtWidgets.QTableView()
         self.decode_table.setModel(self.decode_model)
-        # self.decode_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.decode_table.verticalHeader().setVisible(False)
+        self.decode_table.setEditTriggers(QtWidgets.QAbstractItemView.EditTrigger.NoEditTriggers)
+
         header = self.decode_table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
