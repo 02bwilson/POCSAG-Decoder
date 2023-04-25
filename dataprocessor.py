@@ -8,7 +8,7 @@ class DataProcessor(QThread):
     preamble = pyqtSignal(str)
     framesync = pyqtSignal()
     fs_exdata = pyqtSignal(str)
-    message = pyqtSignal(str)
+    message = pyqtSignal(str, str)
     msg_batch_over = pyqtSignal()
     addr = pyqtSignal(str)
 
@@ -79,7 +79,6 @@ class DataProcessor(QThread):
                 value = int(b1, 2)
                 msg += chr(value)
 
-            self.message.emit(msg)
+            self.message.emit(msg, self.cur_data)
             self.cur_data = ""
             self.msg_batch_over.emit()
-            print()
