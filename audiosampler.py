@@ -22,11 +22,8 @@ class AudioSampler(QThread):
     def stop_stream(self):
         if self.stream.is_active():
             self.stream.stop_stream()
-            print("Stream is stopped")
 
-        self.stream.close()
-
-        self.p.terminate()
+        self.p.close(self.stream)
 
     def update_data(self, data):
         self.update.emit(data)
