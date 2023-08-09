@@ -1,6 +1,6 @@
 # POCSAG Decoder
 
-POCSAG Decoder is a Python program that decodes POCSAG signals, which are used for pager communication. The program is designed to run on the Windows.
+POCSAG Decoder is a Python program that decodes POCSAG signals, which are used for pager communication. The program is designed to run on Windows.
 
 ## Installation
 
