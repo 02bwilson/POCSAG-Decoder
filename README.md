@@ -1,5 +1,5 @@
 # POCSAG Decoder
-
+[![POCSAG-Decoder](https://github.com/02bwilson/POCSAG-Decoder/actions/workflows/main.yml/badge.svg)](https://github.com/02bwilson/POCSAG-Decoder/actions/workflows/main.yml)
 POCSAG Decoder is a Python program that decodes POCSAG signals, which are used for pager communication. The program is designed to run on Windows.
 
 ## Installation
