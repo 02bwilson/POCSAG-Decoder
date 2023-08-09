@@ -29,4 +29,4 @@ jobs:
         pip install pyinstaller pyqt6 pyqtdarktheme scipy numpy
     - name: Create Executable
       run: |
-        pyinstaller --onefile --noconsole ./POCSAG-Decoder.py
+        pyinstaller --onefile --noconsole ./POCSAG_Decoder.py
